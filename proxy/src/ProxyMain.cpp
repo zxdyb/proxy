@@ -17,12 +17,18 @@
 
 #include "LogRLD.h"
 #include "ConfigSt.h"
-#include<boost/filesystem.hpp> 
+#include <boost/filesystem.hpp> 
+#include <boost/lexical_cast.hpp>
 
 #define CONFIG_FILE_NAME "proxy.ini"
 
+#ifdef _MSC_VER
+#define strcasecmp _stricmp
+#define strncasecmp  _strnicmp//strnicmp 
+#endif
 
-void InitLog()
+
+static void InitLog()
 {
     std::string strHost = "Proxy(127.0.0.1)";
     std::string strLogPath = "./logs/";
@@ -118,6 +124,20 @@ void InitLog()
 
     LogRLD::GetInstance().Init(iLoglevel, strHost, strLogInnerShowName, LogPath.string(), iSchedule, iMaxLogFileBackupNum);
 
+}
+
+static std::string GetConfig(const std::string &strItem)
+{
+    boost::filesystem::path currentPath = boost::filesystem::current_path() / CONFIG_FILE_NAME;
+
+    //判断配置文件是否存在
+    if (boost::filesystem::exists(currentPath))
+    {
+        //初始化配置信息
+        ConfigSt cfg(currentPath.string());
+        return cfg.GetItem(strItem);
+    }
+    return "";
 }
 
 
@@ -231,6 +251,23 @@ int main(int argc, char* argv[])
             LOG_ERROR_RLD("Create proxy server failed, exit...");
             return 0;
         }
+
+        const std::string &strSrcIDReplaceByIncSeq = GetConfig("General.SrcIDReplaceByIncSeq");
+        bool blSrcIDReplaceByIncSeq = false;
+        if (!strSrcIDReplaceByIncSeq.empty())
+        {
+            blSrcIDReplaceByIncSeq = boost::lexical_cast<bool>(strSrcIDReplaceByIncSeq);
+        }
+        phb->SetSrcIDReplaceByIncSeq(blSrcIDReplaceByIncSeq);
+
+        bool blCreateSIDOnConnected = false;
+        const std::string &strCreateSIDOnConnected = GetConfig("General.CreateSIDOnConnected");
+        if (!strCreateSIDOnConnected.empty())
+        {
+            blCreateSIDOnConnected = boost::lexical_cast<bool>(strCreateSIDOnConnected);
+        }
+        phb->SetCreateSIDOnConnected(blCreateSIDOnConnected);
+
     
         LOG_INFO_RLD("Proxy begin running...");
         phb->Run(uiThreadNum);

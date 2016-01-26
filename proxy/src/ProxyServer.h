@@ -62,6 +62,15 @@ public:
         m_Status = uiStatus;
     };
 
+    inline void SetSrcIDReplaceByIncSeq(const bool blValue)
+    {
+        m_SrcIDReplaceByIncSeq = blValue;
+    };
+
+    inline void SetCreateSIDOnConnected(const bool blValue)
+    {
+        m_CreateSIDOnConnected = blValue;
+    };
     
     static const boost::uint32_t RUN = 1;
     static const boost::uint32_t STOP = 0;
@@ -87,6 +96,8 @@ private:
 
     boost::uint64_t m_SeqNum;
     std::string m_strSeqNum;
+    bool m_SrcIDReplaceByIncSeq;
+    bool m_CreateSIDOnConnected;
             
 };
 
@@ -107,11 +118,24 @@ public:
         boost::shared_ptr<std::list<std::string> > pDstIDList,
         boost::shared_ptr<ProxySession> pSrcSession);
 
-    void RemoveExangeMap(const std::string strID, const boost::uint64_t uiSeq);
+    void RemoveExangeMap(const std::string strID);
 
     void AddExangeMap(const std::string &strID, boost::shared_ptr<ProxySession> pSession);
 
-    void AddExangeMapZero(boost::shared_ptr<ProxySession> pSession, const std::string &strMsg);
+    bool AddExangeMapZero(boost::shared_ptr<ProxySession> pSession, const std::string &strMsg);
+
+    inline void SetSrcIDReplaceByIncSeq(const bool blValue)
+    {
+        m_SrcIDReplaceByIncSeq = blValue;
+    };
+
+    inline void SetCreateSIDOnConnected(const bool blValue)
+    {
+        m_CreateSIDOnConnected = blValue;
+    }
+
+    char *GeneratePackage(const std::string &strSrcID, const std::string &strDstID, const std::string &strType,
+        const char *pContentBuffer, const boost::uint32_t uiContentBufferLen, boost::uint32_t &uiTotalLen);
 
 private:
 
@@ -125,6 +149,10 @@ private:
     boost::atomic_bool m_NeedAuth;
 
     boost::atomic_uint64_t m_SeqNum;
+
+    bool m_SrcIDReplaceByIncSeq;
+
+    bool m_CreateSIDOnConnected;
 
 private:
 
