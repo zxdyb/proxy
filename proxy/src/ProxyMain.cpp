@@ -1,18 +1,19 @@
 // TestAll.cpp : 定义控制台应用程序的入口点。
 //
 
-#ifdef _WIN32
-#include "stdafx.h"
-#include "../Storage/NetComm.h"
-#else
+//#ifdef _WIN32
+//#include "stdafx.h"
+//#include "../Storage/NetComm.h"
+//#else
 #include "NetComm.h"
 
-#endif
+//#endif
 
 #include <list>
 #include <string>
 #include <map>
 #include "ProxyServer.h"
+#include "ProxyClient.h"
 //#include<algorithm>
 
 #include "LogRLD.h"
@@ -141,11 +142,8 @@ static std::string GetConfig(const std::string &strItem)
 }
 
 
-#ifdef _WIN32
-int _tmain(int argc, _TCHAR* argv[])
-#else
+
 int main(int argc, char* argv[])
-#endif
 {    
     
     InitLog();
