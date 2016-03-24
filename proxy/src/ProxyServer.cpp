@@ -183,11 +183,18 @@ void ProxyHub::RemoveExangeMap(const std::string strID)
         
         LOG_INFO_RLD("Remove exangemap id " << strID << " and map size is " << m_ExangeMap.size());
 
-        if (m_ExangeMap.empty())
+        if (strID == "0")
         {
             m_NeedAuth = true;
             LOG_INFO_RLD("Exangemap is empty and reset auth flag to true");
         }
+
+        ////////
+        //if (m_ExangeMap.empty())
+        //{
+        //    m_NeedAuth = true;
+        //    LOG_INFO_RLD("Exangemap is empty and reset auth flag to true");
+        //}
     }
     else
     {
