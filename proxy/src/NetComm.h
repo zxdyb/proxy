@@ -311,6 +311,8 @@ public:
         
     void Stop();
 
+    void SetLoop(bool bIsLoop) { m_isLoop = bIsLoop; }
+
 private:
     void RunTimeIOService();
 
