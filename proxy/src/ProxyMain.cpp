@@ -266,6 +266,13 @@ int main(int argc, char* argv[])
         }
         phb->SetCreateSIDOnConnected(blCreateSIDOnConnected);
 
+        unsigned int uiAsyncReadTimeOut = 10;
+        const std::string &strAsyncReadTimeOut = GetConfig("General.AsyncReadTimeOut");
+        if (!strAsyncReadTimeOut.empty())
+        {
+            uiAsyncReadTimeOut = boost::lexical_cast<unsigned int>(strAsyncReadTimeOut);
+        }
+        phb->SetAsyncReadTimeOut(uiAsyncReadTimeOut);        
     
         LOG_INFO_RLD("Proxy begin running...");
         phb->Run(uiThreadNum);

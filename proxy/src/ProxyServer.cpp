@@ -14,7 +14,8 @@
 
 
 
-ProxyHub::ProxyHub(const unsigned short uiPort) : m_TSvr(uiPort), m_NeedAuth(true), m_SeqNum(0), m_SrcIDReplaceByIncSeq(false), m_CreateSIDOnConnected(false)
+ProxyHub::ProxyHub(const unsigned short uiPort) : m_TSvr(uiPort), m_NeedAuth(true), m_SeqNum(0), m_SrcIDReplaceByIncSeq(false), m_CreateSIDOnConnected(false),
+m_uiAsyncReadTimeOut(10)
 {
 
 }
@@ -43,6 +44,8 @@ void ProxyHub::AcceptCB(boost::shared_ptr<TCPSessionOfServer> pSession, const bo
     }
     pProxySession->SetCreateSIDOnConnected(m_CreateSIDOnConnected);
 
+    pProxySession->SetAsyncReadTimeOut(m_uiAsyncReadTimeOut);
+
     LOG_INFO_RLD("Accept connection and remote address is " << strAddress.c_str() << " and seq id is " << pProxySession->GetSeqID());
     
     pSession->SetCallBack(boost::bind(&ProxySession::ReadCB, pProxySession, _1, _2, _3, _4), true);
@@ -51,7 +54,7 @@ void ProxyHub::AcceptCB(boost::shared_ptr<TCPSessionOfServer> pSession, const bo
     char *pBuffer = new char[BUFFER_SIZE];
     memset(pBuffer, 0, BUFFER_SIZE);
 
-    pSession->AsyncRead(pBuffer + sizeof(boost::uint32_t), BUFFER_SIZE - sizeof(boost::uint32_t), 10, (void *)pBuffer);
+    pSession->AsyncRead(pBuffer + sizeof(boost::uint32_t), BUFFER_SIZE - sizeof(boost::uint32_t), m_uiAsyncReadTimeOut, (void *)pBuffer);
 
 
 }
@@ -280,7 +283,8 @@ bool ProxyHub::IsBussnessAuth(char *pPos, boost::uint32_t uiReadPos)
 }
 
 ProxySession::ProxySession(ProxyHub &proxyhub, boost::shared_ptr<TCPSessionOfServer> pSession)
-    : m_ProxyHub(proxyhub), m_Status(RUN), m_Func(NULL), m_pTCPSession(pSession), m_SeqNum(0), m_SrcIDReplaceByIncSeq(false), m_CreateSIDOnConnected(false)
+    : m_ProxyHub(proxyhub), m_Status(RUN), m_Func(NULL), m_pTCPSession(pSession), m_SeqNum(0), m_SrcIDReplaceByIncSeq(false), m_CreateSIDOnConnected(false),
+    m_uiAsyncReadTimeOut(10)
 {
     LOG_INFO_RLD("Proxy session created");
 }
@@ -385,7 +389,7 @@ void ProxySession::ReadCB(boost::shared_ptr<TCPSessionOfServer> pSession,
         char *pBf = pUsedBuffer + uiReadPos;
         boost::uint32_t uiSz = uiUsedBufferSize - uiReadPos;
 
-        m_Func = boost::bind(&TCPSessionOfServer::AsyncRead, pSession, pBf, uiSz, 10, (void *)pBuffer, 0);
+        m_Func = boost::bind(&TCPSessionOfServer::AsyncRead, pSession, pBf, uiSz, m_uiAsyncReadTimeOut, (void *)pBuffer, 0);
 
         m_ProxyHub.ProcessProtocol(boost::shared_ptr<std::list<std::string> >(pProtoList),
             boost::shared_ptr<std::list<std::string> >(pDstIDList),
@@ -400,7 +404,7 @@ void ProxySession::ReadCB(boost::shared_ptr<TCPSessionOfServer> pSession,
         delete pDstIDList;
         pDstIDList = NULL;
 
-        pSession->AsyncRead((pUsedBuffer + uiReadPos), (uiUsedBufferSize - uiReadPos), 10, (void *)pBuffer);
+        pSession->AsyncRead((pUsedBuffer + uiReadPos), (uiUsedBufferSize - uiReadPos), m_uiAsyncReadTimeOut, (void *)pBuffer);
     }
 
 

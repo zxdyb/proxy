@@ -67,6 +67,11 @@ public:
     {
         m_CreateSIDOnConnected = blValue;
     };
+
+    inline void SetAsyncReadTimeOut(const unsigned int uiAsyncReadTimeOut)
+    {
+        m_uiAsyncReadTimeOut = uiAsyncReadTimeOut;
+    };
     
     static const boost::uint32_t RUN = 1;
     static const boost::uint32_t STOP = 0;
@@ -97,6 +102,8 @@ private:
     
     bool m_SrcIDReplaceByIncSeq;
     bool m_CreateSIDOnConnected;
+
+    unsigned int m_uiAsyncReadTimeOut;
 
 };
 
@@ -133,6 +140,11 @@ public:
         m_CreateSIDOnConnected = blValue;
     }
 
+    inline void SetAsyncReadTimeOut(const unsigned int uiAsyncReadTimeOut)
+    {
+        m_uiAsyncReadTimeOut = uiAsyncReadTimeOut;
+    };
+
     char *GeneratePackage(const std::string &strSrcID, const std::string &strDstID, const std::string &strType,
         const char *pContentBuffer, const boost::uint32_t uiContentBufferLen, boost::uint32_t &uiTotalLen);
 
@@ -152,6 +164,8 @@ private:
     bool m_SrcIDReplaceByIncSeq;
 
     bool m_CreateSIDOnConnected;
+
+    unsigned int m_uiAsyncReadTimeOut;
 
 private:
 
