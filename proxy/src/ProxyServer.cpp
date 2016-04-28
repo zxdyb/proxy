@@ -51,7 +51,7 @@ void ProxyHub::AcceptCB(boost::shared_ptr<TCPSessionOfServer> pSession, const bo
     char *pBuffer = new char[BUFFER_SIZE];
     memset(pBuffer, 0, BUFFER_SIZE);
 
-    pSession->AsyncRead(pBuffer + sizeof(boost::uint32_t), BUFFER_SIZE - sizeof(boost::uint32_t), (void *)pBuffer);
+    pSession->AsyncRead(pBuffer + sizeof(boost::uint32_t), BUFFER_SIZE - sizeof(boost::uint32_t), 10, (void *)pBuffer);
 
 
 }
@@ -385,7 +385,7 @@ void ProxySession::ReadCB(boost::shared_ptr<TCPSessionOfServer> pSession,
         char *pBf = pUsedBuffer + uiReadPos;
         boost::uint32_t uiSz = uiUsedBufferSize - uiReadPos;
 
-        m_Func = boost::bind(&TCPSessionOfServer::AsyncRead, pSession, pBf, uiSz, (void *)pBuffer, 0);
+        m_Func = boost::bind(&TCPSessionOfServer::AsyncRead, pSession, pBf, uiSz, 10, (void *)pBuffer, 0);
 
         m_ProxyHub.ProcessProtocol(boost::shared_ptr<std::list<std::string> >(pProtoList),
             boost::shared_ptr<std::list<std::string> >(pDstIDList),
@@ -400,7 +400,7 @@ void ProxySession::ReadCB(boost::shared_ptr<TCPSessionOfServer> pSession,
         delete pDstIDList;
         pDstIDList = NULL;
 
-        pSession->AsyncRead((pUsedBuffer + uiReadPos), (uiUsedBufferSize - uiReadPos), (void *)pBuffer);
+        pSession->AsyncRead((pUsedBuffer + uiReadPos), (uiUsedBufferSize - uiReadPos), 10, (void *)pBuffer);
     }
 
 

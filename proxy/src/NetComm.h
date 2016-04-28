@@ -24,6 +24,7 @@
 #include <list>
 #include <boost/atomic/atomic.hpp>
 #include <boost/lockfree/queue.hpp> 
+#include <unordered_map>
 
 typedef boost::function<void()>RunCallFunc;
 
@@ -73,7 +74,8 @@ class TCPSessionOfServer
 	: public boost::enable_shared_from_this<TCPSessionOfServer>, public boost::noncopyable
 {
 public:
-	TCPSessionOfServer(boost::asio::io_service& io_service, ServerReadOrWriteCallback RdCB = NULL, ServerReadOrWriteCallback WtCB = NULL);
+    TCPSessionOfServer(boost::asio::io_service &TMIOService, boost::asio::io_service& io_service, 
+        ServerReadOrWriteCallback RdCB = NULL, ServerReadOrWriteCallback WtCB = NULL);
 
     ~TCPSessionOfServer();
 
@@ -81,20 +83,32 @@ public:
 
 	boost::asio::ip::tcp::socket& GetSocket();
 
-    void AsyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, //const boost::uint32_t uiWtTimeOutSec,
+    void AsyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, const boost::uint32_t uiWtTimeOutSec = 0,
         void *pValue = NULL);
 
-    void AsyncRead(char *pOutputBuffer, const boost::uint32_t uiBufferSize, //const boost::uint32_t uiRdTimeOutSec,
+    void AsyncRead(char *pOutputBuffer, const boost::uint32_t uiBufferSize, const boost::uint32_t uiRdTimeOutSec = 0,
         void *pValue = NULL, const boost::uint32_t uiNeedReadSize = 0);
 
     bool SyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, boost::uint32_t &uiSizeofWrited,
         std::string &strErrMsg);
+
+    void HandleWtTimeOut(const boost::system::error_code& e);
+
+    void HandleRdTimeOut(const boost::system::error_code& e);
+
+    void Close();
     
 private:
-	void HandleRead(const boost::system::error_code& error, std::size_t bytes_transferred, void *pValue);
+    void SocketCancel(const boost::system::error_code& e);
 
-	void HandleWrite(const boost::system::error_code& error, std::size_t bytes_transferred, void *pValue);
+    void HandleRead(boost::shared_ptr<boost::asio::deadline_timer> pTimer, const boost::system::error_code& error,
+        std::size_t bytes_transferred, void *pValue);
 
+    void HandleWrite(boost::shared_ptr<boost::asio::deadline_timer> pTimer, const boost::system::error_code& error,
+        std::size_t bytes_transferred, void *pValue);
+
+private:
+    boost::asio::io_service &m_TMIOService;
 	boost::asio::ip::tcp::socket m_Socket;
 
 	ServerReadOrWriteCallback m_RdCB;
@@ -114,6 +128,8 @@ public:
         return m_IOService;
     };
 private:
+    void RunTimeIOService();
+
     void RunIOService();
 
 	void StartAccept(ServerReadOrWriteCallback RdBck = NULL, ServerReadOrWriteCallback WtBck = NULL);
@@ -141,6 +157,9 @@ private:
     };
     std::list<SessionIOService> m_SessionIOServiceList;
     static const boost::uint32_t SESSION_LIMIT_NUM = 50;
+
+    boost::asio::io_service m_TimeIOService;
+    boost::asio::io_service::work m_TimeIOWork;
 };
 
 
@@ -426,6 +445,68 @@ private:
     boost::uint32_t m_uiRunTdNum;
     boost::atomic_bool m_NeedLoop;
 };
+
+
+/************************************************************************/
+/* 提供通用计时处理，管理多个tick                                                  */
+/************************************************************************/
+class TickCountMgr : public boost::noncopyable
+{
+public:
+    TickCountMgr();
+    ~TickCountMgr();
+
+    typedef boost::function<void(const std::string &)> TickCB;
+    
+    bool Add(const std::string &strKey, const boost::uint64_t uiMaxTick, TickCB tcb, 
+        boost::shared_ptr<boost::atomic_uint64_t> &pTick, const bool IsReset = false, const bool IsAsync = true);
+
+    bool Remove(const std::string &strKey, const bool IsAsync = true);
+        
+    bool Reset(const std::string &strKey, const bool IsAsync = true);
+
+    bool Reset(boost::shared_ptr<boost::atomic_uint64_t> pTick);
+
+    //bool Find(const std::string &strKey);
+
+private:
+    struct PropetyTick
+    {
+        bool m_IsReset; //超时之后是否重置tick值
+
+        int m_uiStatus;
+        boost::shared_ptr<boost::atomic_uint64_t> m_pTick;
+        boost::uint64_t m_uiMaxTick;
+        TickCB m_Tcb;
+
+        static const int NORMAL = 0;
+        static const int TIMEOUT = 1;
+    };
+
+    typedef std::unordered_map<std::string, PropetyTick> TickMap;
+
+    TickMap m_TickMap;
+    boost::mutex m_TickMutex;
+
+    TimeOutHandler m_TMHandler;
+
+    Runner m_Runner;
+
+private:
+
+    void TMHandler(const boost::system::error_code &ec);
+
+    void TMHandlerInner(const boost::system::error_code &ec);
+
+    bool AddInner(const std::string &strKey, const boost::uint64_t uiMaxTick, TickCB tcb,
+        boost::shared_ptr<boost::atomic_uint64_t> &pTick, const bool IsReset = false);
+
+    bool RemoveInner(const std::string &strKey);
+
+    bool ResetInner(const std::string &strKey);
+
+};
+
 
 #endif
 

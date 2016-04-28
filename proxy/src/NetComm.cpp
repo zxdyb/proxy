@@ -77,8 +77,9 @@ bool UDPServer::ReceiveMessageSyn( char *pMessage, const boost::uint32_t uiSize 
     }
 }
 
-TCPSessionOfServer::TCPSessionOfServer(boost::asio::io_service& io_service, 
-	ServerReadOrWriteCallback RdCB, ServerReadOrWriteCallback WtCB) : m_Socket(io_service), m_RdCB(RdCB), m_WtCB(WtCB)
+TCPSessionOfServer::TCPSessionOfServer(boost::asio::io_service &TMIOService, boost::asio::io_service& io_service,
+    ServerReadOrWriteCallback RdCB, ServerReadOrWriteCallback WtCB) : 
+    m_TMIOService(TMIOService), m_Socket(io_service), m_RdCB(RdCB), m_WtCB(WtCB)
 {
 
 }
@@ -89,29 +90,49 @@ tcp::socket& TCPSessionOfServer::GetSocket()
 }
 
 
-void TCPSessionOfServer::AsyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, //const boost::uint32_t uiWtTimeOutSec,
+void TCPSessionOfServer::AsyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, const boost::uint32_t uiWtTimeOutSec,
     void *pValue)
 {
+    boost::shared_ptr<boost::asio::deadline_timer> pTimer;
+    if (0 != uiWtTimeOutSec)
+    {
+        boost::system::error_code ecn;
+        pTimer.reset(new boost::asio::deadline_timer(m_TMIOService));
+        pTimer->expires_from_now(boost::posix_time::seconds(uiWtTimeOutSec), ecn);
+        pTimer->async_wait(boost::bind(&TCPSessionOfServer::HandleWtTimeOut, shared_from_this(),
+            boost::asio::placeholders::error));
+    }
+
     boost::asio::async_write(m_Socket, boost::asio::buffer(pInputBuffer, uiBufferSize), 
-        boost::bind(&TCPSessionOfServer::HandleWrite, shared_from_this(), //pTimer,
+        boost::bind(&TCPSessionOfServer::HandleWrite, shared_from_this(), pTimer,
         boost::asio::placeholders::error,
         boost::asio::placeholders::bytes_transferred, pValue));
 }
 
-void TCPSessionOfServer::AsyncRead(char *pOutputBuffer, const boost::uint32_t uiBufferSize, //const boost::uint32_t uiRdTimeOutSec,
+void TCPSessionOfServer::AsyncRead(char *pOutputBuffer, const boost::uint32_t uiBufferSize, const boost::uint32_t uiRdTimeOutSec,
     void *pValue, const boost::uint32_t uiNeedReadSize)
 {
+    boost::shared_ptr<boost::asio::deadline_timer> pTimer;
+    if (0 != uiRdTimeOutSec)
+    {
+        boost::system::error_code ecn;
+        pTimer.reset(new boost::asio::deadline_timer(m_TMIOService));
+        pTimer->expires_from_now(boost::posix_time::seconds(uiRdTimeOutSec), ecn);
+        pTimer->async_wait(boost::bind(&TCPSessionOfServer::HandleRdTimeOut, shared_from_this(),
+            boost::asio::placeholders::error));
+    }
+
     if (0 == uiNeedReadSize)
     {
         m_Socket.async_read_some(boost::asio::buffer(pOutputBuffer, uiBufferSize),
-            boost::bind(&TCPSessionOfServer::HandleRead, shared_from_this(), //pTimer,
+            boost::bind(&TCPSessionOfServer::HandleRead, shared_from_this(), pTimer,
             boost::asio::placeholders::error,
             boost::asio::placeholders::bytes_transferred, pValue));
     }
     else
     {
         boost::asio::async_read(m_Socket, boost::asio::buffer(pOutputBuffer, uiNeedReadSize),
-            boost::bind(&TCPSessionOfServer::HandleRead, shared_from_this(), //pTimer,
+            boost::bind(&TCPSessionOfServer::HandleRead, shared_from_this(), pTimer,
             boost::asio::placeholders::error,
             boost::asio::placeholders::bytes_transferred, pValue));
     }
@@ -119,8 +140,17 @@ void TCPSessionOfServer::AsyncRead(char *pOutputBuffer, const boost::uint32_t ui
 
 
 
-void TCPSessionOfServer::HandleRead(const boost::system::error_code& error, std::size_t bytes_transferred, void *pValue)
+void TCPSessionOfServer::HandleRead(boost::shared_ptr<boost::asio::deadline_timer> pTimer,
+    const boost::system::error_code& error, std::size_t bytes_transferred, void *pValue)
 {
+    {
+        if (NULL != pTimer.get())
+        {
+            boost::system::error_code et;
+            pTimer->cancel(et);
+        }
+    }
+
 	if (NULL != m_RdCB)
     {
         m_RdCB(shared_from_this(), error, bytes_transferred, pValue);
@@ -128,8 +158,16 @@ void TCPSessionOfServer::HandleRead(const boost::system::error_code& error, std:
 
 }
 
-void TCPSessionOfServer::HandleWrite(const boost::system::error_code& error, std::size_t bytes_transferred, void *pValue)
+void TCPSessionOfServer::HandleWrite(boost::shared_ptr<boost::asio::deadline_timer> pTimer,
+    const boost::system::error_code& error, std::size_t bytes_transferred, void *pValue)
 {
+    {
+        if (NULL != pTimer.get())
+        {
+            boost::system::error_code et;
+            pTimer->cancel(et);
+        }
+    }
 
     if (NULL != m_WtCB)
     {
@@ -171,8 +209,47 @@ bool TCPSessionOfServer::SyncWrite(char *pInputBuffer, const boost::uint32_t uiB
     return true;
 }
 
+void TCPSessionOfServer::SocketCancel(const boost::system::error_code& e)
+{
+    if (e)
+    {
+        return; //Timer canceled.
+    }
+
+    Close();
+}
+
+void TCPSessionOfServer::HandleWtTimeOut(const boost::system::error_code& e)
+{
+    SocketCancel(e);
+}
+
+void TCPSessionOfServer::HandleRdTimeOut(const boost::system::error_code& e)
+{
+    SocketCancel(e);
+}
+
+void TCPSessionOfServer::Close()
+{
+    boost::system::error_code ec;
+
+    m_Socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    if (ec)
+    {
+        //log to file, continue to close socket
+    }
+
+    boost::system::error_code ec2;
+    m_Socket.close(ec2);
+    if (ec2)
+    {
+        //log to file
+    }
+}
+
 TCPServer::TCPServer(unsigned short port) : m_Acceptor(m_IOServiceAcceptor, tcp::endpoint(tcp::v4(), port)), 
-m_IOWork(m_IOService), m_IOWorkAcceptor(m_IOServiceAcceptor), m_AcceptedCallback(NULL), m_SessionNum(0)
+m_IOWork(m_IOService), m_IOWorkAcceptor(m_IOServiceAcceptor), m_AcceptedCallback(NULL), m_SessionNum(0),
+m_TimeIOWork(m_TimeIOService)
 {
 	//StartAccept();
 }
@@ -189,7 +266,7 @@ void TCPServer::StartAccept(ServerReadOrWriteCallback RdBck, ServerReadOrWriteCa
     }
 
     boost::shared_ptr<TCPSessionOfServer> pSession(
-        new TCPSessionOfServer(*(NULL == pNewIOService ? &m_IOService : pNewIOService),
+        new TCPSessionOfServer(m_TimeIOService, *(NULL == pNewIOService ? &m_IOService : pNewIOService),
         RdBck, WtBck));
 
 	m_Acceptor.async_accept(pSession->GetSocket(),
@@ -231,8 +308,7 @@ void TCPServer::Run(const boost::uint32_t uiThreadNum, AcceptedCallback ApBck, S
 		m_RunThdGrp.add_thread(new boost::thread(boost::bind(&TCPServer::RunIOService, this)));
 	}
 
-
-	//m_RunThdGrp.add_thread(new boost::thread(boost::bind(&TCPClient::RunTimeIOService, this)));
+    m_RunThdGrp.add_thread(new boost::thread(boost::bind(&TCPServer::RunTimeIOService, this)));
 
 	if (isWaitRunFinished)
 	{
@@ -250,6 +326,16 @@ void TCPServer::RunCommonIOService(boost::asio::io_service *pIoSvr)
 {
     boost::system::error_code error;
     pIoSvr->run(error);
+}
+
+void TCPServer::RunTimeIOService()
+{
+    boost::system::error_code error;
+    m_TimeIOService.run(error);
+    if (error)
+    {
+
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -948,3 +1034,182 @@ void RunnerFree::ConsumeFunc()
         }
     }
 }
+
+TickCountMgr::TickCountMgr() : m_TMHandler(boost::bind(&TickCountMgr::TMHandler, this, _1), 2), m_Runner(1)
+{
+    m_Runner.Run();
+    m_TMHandler.Run();
+
+}
+
+TickCountMgr::~TickCountMgr()
+{
+    m_TMHandler.Stop();
+    m_Runner.Stop();
+}
+
+bool TickCountMgr::Add(const std::string &strKey, const boost::uint64_t uiMaxTick, TickCB tcb,
+    boost::shared_ptr<boost::atomic_uint64_t> &pTick, const bool IsReset /*= false*/, const bool IsAsync /*=true*/)
+{
+    if (IsAsync)
+    {
+        m_Runner.Post(boost::bind(&TickCountMgr::AddInner, this, strKey, uiMaxTick, tcb, pTick, IsReset));
+        return true;
+    }
+    else
+    {
+        boost::unique_lock<boost::mutex> lock(m_TickMutex);
+        return AddInner(strKey, uiMaxTick, tcb, pTick, IsReset);
+    }
+}
+
+bool TickCountMgr::AddInner(const std::string &strKey, const boost::uint64_t uiMaxTick, TickCB tcb, 
+    boost::shared_ptr<boost::atomic_uint64_t> &pTick, const bool IsReset /*= false*/)
+{    
+    auto itFind = m_TickMap.find(strKey);
+    if (m_TickMap.end() != itFind)
+    {
+        return false;
+    }
+
+    if (NULL == tcb || 0 == uiMaxTick)
+    {
+        return false;
+    }
+
+    PropetyTick pt;
+    pt.m_IsReset = IsReset;    
+    pt.m_uiStatus = PropetyTick::NORMAL;
+    pt.m_uiMaxTick = uiMaxTick;
+    pt.m_Tcb = tcb;
+
+    if (NULL == pTick.get())
+    {
+        pt.m_pTick.reset(new boost::atomic_uint64_t(0));
+        pTick = pt.m_pTick;
+    }
+    else
+    {
+        *pTick = 0;
+        pt.m_pTick = pTick;
+    }
+        
+    m_TickMap.insert(TickMap::value_type(strKey, pt));
+    
+    return true;
+}
+
+void TickCountMgr::TMHandler(const boost::system::error_code &ec)
+{
+    m_Runner.Post(boost::bind(&TickCountMgr::TMHandlerInner, this, ec));
+}
+
+void TickCountMgr::TMHandlerInner(const boost::system::error_code &ec)
+{
+
+    if (ec)
+    {
+        return;
+    }
+
+    boost::unique_lock<boost::mutex> lock(m_TickMutex);
+    auto itBegin = m_TickMap.begin();
+    auto itEnd = m_TickMap.end();
+    while (itBegin != itEnd)
+    {
+        if (itBegin->second.m_uiMaxTick < ++(*itBegin->second.m_pTick))
+        {
+            if ((PropetyTick::NORMAL == itBegin->second.m_uiStatus))
+            {
+                itBegin->second.m_uiStatus = PropetyTick::TIMEOUT;
+                itBegin->second.m_Tcb(itBegin->first);
+
+                if (!itBegin->second.m_IsReset)
+                {
+                    m_TickMap.erase(itBegin++);
+                    continue;
+                }
+                else
+                {
+                    *(itBegin->second.m_pTick) = 0;
+                }
+            }
+        }
+
+        ++itBegin;
+    }
+
+
+}
+
+bool TickCountMgr::Remove(const std::string &strKey, const bool IsAsync)
+{
+    if (IsAsync)
+    {
+        m_Runner.Post(boost::bind(&TickCountMgr::RemoveInner, this, strKey));
+        return true;
+    }
+    else
+    {
+        boost::unique_lock<boost::mutex> lock(m_TickMutex);
+        return RemoveInner(strKey);
+    }
+}
+
+bool TickCountMgr::RemoveInner(const std::string &strKey)
+{    
+    auto itFind = m_TickMap.find(strKey);
+    if (m_TickMap.end() == itFind)
+    {
+        return false;
+    }
+
+    m_TickMap.erase(itFind);
+    return true;
+}
+
+bool TickCountMgr::ResetInner(const std::string &strKey)
+{    
+    auto itFind = m_TickMap.find(strKey);
+    if (m_TickMap.end() == itFind)
+    {
+        return false;
+    }
+
+    *(itFind->second.m_pTick) = 0;
+    return true;
+}
+
+bool TickCountMgr::Reset(const std::string &strKey, const bool IsAsync)
+{
+    if (IsAsync)
+    {
+        m_Runner.Post(boost::bind(&TickCountMgr::ResetInner, this, strKey));
+        return true;
+    }
+    else
+    {
+        boost::unique_lock<boost::mutex> lock(m_TickMutex);
+        return ResetInner(strKey);
+    }
+}
+
+
+bool TickCountMgr::Reset(boost::shared_ptr<boost::atomic_uint64_t> pTick)
+{
+    *pTick = 0;
+    return true;
+}
+
+//bool TickCountMgr::Find(const std::string &strKey)
+//{
+//    boost::unique_lock<boost::mutex> lock(m_TickMutex);
+//    auto itFind = m_TickMap.find(strKey);
+//    if (m_TickMap.end() == itFind)
+//    {
+//        return false;
+//    }
+//
+//    return true;
+//}
+
