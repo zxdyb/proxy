@@ -12,6 +12,12 @@
 #define BUFFER_SIZE (64 * 1024)
 #include <boost/weak_ptr.hpp>
 
+namespace roiland
+{
+    class MemcacheClient;
+}
+
+using namespace roiland;
 
 typedef std::unordered_map<std::string, boost::shared_ptr<std::list<std::string> > > PendingMap;
 
@@ -82,6 +88,8 @@ private:
         boost::uint32_t &uiFlag, char *&pBufferNewPos, std::list<std::string> *pDstIDList);
 
     void PreprocessProtoMsg(std::string &strProto, std::list<std::string> *pDstIDList, const std::string &strSrcID, const std::string &strDstID);
+
+    bool Auth(const std::string &strSrcID);
     
     ProxyHub &m_ProxyHub;
 
@@ -104,7 +112,7 @@ private:
     bool m_CreateSIDOnConnected;
 
     unsigned int m_uiAsyncReadTimeOut;
-
+        
 };
 
 class ProxyHub
@@ -145,6 +153,40 @@ public:
         m_uiAsyncReadTimeOut = uiAsyncReadTimeOut;
     };
 
+    void SetAuthEnable(const bool blAuthEnable);
+
+    inline void SetAuthSrcIP(const std::string &strAuthSrcIP)
+    {
+        m_strAuthSrcIP = strAuthSrcIP;
+    };
+
+    inline void SetAuthSrcPort(const int iAuthSrcPort)
+    {
+        m_iAuthSrcPort = iAuthSrcPort;
+    };
+
+    inline bool GetAuthEnable()
+    {
+        return m_blAuthEnable;
+    };
+
+    inline const std::string &GetAuthSrcIP()
+    {
+        return m_strAuthSrcIP;
+    };
+
+    inline int GetAuthSrcPort()
+    {
+        return m_iAuthSrcPort;
+    };
+
+    inline Runner &GetAuthRunner()
+    {
+        return m_AuthRunner;
+    };
+
+    bool Auth(const std::string &strSrcID);
+
     char *GeneratePackage(const std::string &strSrcID, const std::string &strDstID, const std::string &strType,
         const char *pContentBuffer, const boost::uint32_t uiContentBufferLen, boost::uint32_t &uiTotalLen);
 
@@ -166,6 +208,15 @@ private:
     bool m_CreateSIDOnConnected;
 
     unsigned int m_uiAsyncReadTimeOut;
+
+    bool m_blAuthEnable;
+    std::string m_strAuthSrcIP;
+    int m_iAuthSrcPort;
+
+    MemcacheClient *m_pMemCl;
+    boost::mutex m_MemClMutex;
+
+    Runner m_AuthRunner;
 
 private:
 

@@ -113,6 +113,8 @@ private:
 
 	ServerReadOrWriteCallback m_RdCB;
 	ServerReadOrWriteCallback m_WtCB;
+
+    boost::mutex m_Mutex;
 };
 
 class TCPServer : public boost::noncopyable

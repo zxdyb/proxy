@@ -4,6 +4,7 @@
 #include "boost/bind.hpp"
 #include "boost/lexical_cast.hpp"
 #include "CommonUtility.h"
+#include "libcacheclient.h"
 
 #ifdef WIN32
 #ifndef snprintf
@@ -11,13 +12,10 @@
 #endif
 #endif
 
-
-
-
 ProxyHub::ProxyHub(const unsigned short uiPort) : m_TSvr(uiPort), m_NeedAuth(true), m_SeqNum(0), m_SrcIDReplaceByIncSeq(false), m_CreateSIDOnConnected(false),
-m_uiAsyncReadTimeOut(10)
+m_uiAsyncReadTimeOut(10), m_blAuthEnable(false), m_iAuthSrcPort(11211), m_pMemCl(NULL), m_AuthRunner(1)
 {
-
+    m_AuthRunner.Run();
 }
 
 ProxyHub::~ProxyHub()
@@ -122,6 +120,46 @@ bool ProxyHub::AddExangeMapZero(boost::shared_ptr<ProxySession> pSession, const 
 }
 
 
+
+void ProxyHub::SetAuthEnable(const bool blAuthEnable)
+{
+    m_blAuthEnable = blAuthEnable;
+
+    if (m_blAuthEnable)
+    {
+        m_pMemCl = MemcacheClient::create();
+        if (MemcacheClient::CACHE_SUCCESS != m_pMemCl->addServer(GetAuthSrcIP().c_str(), GetAuthSrcPort()))
+        {
+            MemcacheClient::destoy(m_pMemCl);
+            m_pMemCl = NULL;
+            m_blAuthEnable = false;
+
+            LOG_ERROR_RLD("memcached client init failed, remote ip: " << m_strAuthSrcIP << ", remote port:" << m_iAuthSrcPort);
+        }
+        else
+        {
+            LOG_INFO_RLD("memcached client init succeed, remote ip: " << m_strAuthSrcIP << ", remote port:" << m_iAuthSrcPort);
+        }
+    }
+}
+
+bool ProxyHub::Auth(const std::string &strSrcID)
+{
+    if (!m_blAuthEnable || NULL == m_pMemCl)
+    {
+        LOG_INFO_RLD("current auth is disabled, so the result of auth client is true, client id is " << strSrcID);
+        return true;
+    }
+    
+    boost::unique_lock<boost::mutex>lock(m_MemClMutex);
+
+    std::string strValue;
+    bool blRet = MemcacheClient::CACHE_SUCCESS == m_pMemCl->get(strSrcID.c_str(), strValue);
+    
+    LOG_INFO_RLD("the result of auth client " <<strSrcID << " is " << (blRet ? "true" : "false"));
+
+    return blRet;
+}
 
 char *ProxyHub::GeneratePackage(const std::string &strSrcID, const std::string &strDstID, const std::string &strType,
     const char *pContentBuffer, const boost::uint32_t uiContentBufferLen, boost::uint32_t &uiTotalLen)
@@ -629,8 +667,13 @@ void ProxySession::PreprocessProtoMsg(std::string &strProto, std::list<std::stri
         bool IsZeroPeer = false;
         if (m_strID.empty())
         {
-
             m_strID = m_SrcIDReplaceByIncSeq ? m_strSeqNum : strSrcID;
+
+            if (!Auth(m_strID))
+            {
+                return;
+            }
+
             m_ProxyHub.AddExangeMap(m_strID, shared_from_this());
             IsZeroPeer = m_ProxyHub.AddExangeMapZero(shared_from_this(), strProto);
             if (IsZeroPeer)
@@ -712,4 +755,28 @@ void ProxySession::PreprocessProtoMsg(std::string &strProto, std::list<std::stri
         LOG_INFO_RLD("Proto msg is " << strProto.substr(0, 64) << " srcid replace flag is " << m_SrcIDReplaceByIncSeq << " session msg flag is " << IsSessionMsg);
     }
 }
+
+bool ProxySession::Auth(const std::string &strSrcID)
+{
+    if (!m_ProxyHub.Auth(strSrcID))
+    {
+        if (!m_pTCPSession.expired())
+        {
+            boost::shared_ptr<TCPSessionOfServer> tcpSession = m_pTCPSession.lock();
+            if (NULL != tcpSession.get())
+            {
+                m_ProxyHub.GetAuthRunner().Post(boost::bind(&TCPSessionOfServer::Close, tcpSession));
+                //tcpSession->Close();
+                return false;
+            }
+        }
+        else
+        {
+            LOG_ERROR_RLD("the tcp session that in the proxy session is expired, so auth is true");
+        }
+    }
+
+    return true;
+}
+
 

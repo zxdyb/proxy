@@ -272,7 +272,32 @@ int main(int argc, char* argv[])
         {
             uiAsyncReadTimeOut = boost::lexical_cast<unsigned int>(strAsyncReadTimeOut);
         }
-        phb->SetAsyncReadTimeOut(uiAsyncReadTimeOut);        
+        phb->SetAsyncReadTimeOut(uiAsyncReadTimeOut);
+
+        const std::string &strAuth = GetConfig("Auth.Enable");
+        bool blAuth = false;
+        if (!strAuth.empty() && !blSrcIDReplaceByIncSeq) //不能同时开启序列号自增开关，一旦开始，则鉴权配置不起作用，默认关闭
+        {
+            blAuth = boost::lexical_cast<bool>(strAuth);
+
+            if (blAuth) //若是启用了，则继续解析鉴权参数
+            {
+                const std::string &strAuthSrcIP = GetConfig("Auth.SrcIP");
+                const std::string &strAuthSrcPort = GetConfig("Auth.SrcPort");
+
+                if (strAuthSrcIP.empty() || strAuthSrcPort.empty())
+                {
+                    blAuth = false;
+                }
+                else
+                {
+                    phb->SetAuthSrcIP(strAuthSrcIP);
+                    phb->SetAuthSrcPort(boost::lexical_cast<int>(strAuthSrcPort));
+                }
+            }
+        }
+        phb->SetAuthEnable(blAuth);
+        
     
         LOG_INFO_RLD("Proxy begin running...");
         phb->Run(uiThreadNum);

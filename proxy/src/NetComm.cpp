@@ -93,6 +93,8 @@ tcp::socket& TCPSessionOfServer::GetSocket()
 void TCPSessionOfServer::AsyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, const boost::uint32_t uiWtTimeOutSec,
     void *pValue)
 {
+    boost::unique_lock<boost::mutex> lock(m_Mutex);
+
     boost::shared_ptr<boost::asio::deadline_timer> pTimer;
     if (0 != uiWtTimeOutSec)
     {
@@ -112,6 +114,8 @@ void TCPSessionOfServer::AsyncWrite(char *pInputBuffer, const boost::uint32_t ui
 void TCPSessionOfServer::AsyncRead(char *pOutputBuffer, const boost::uint32_t uiBufferSize, const boost::uint32_t uiRdTimeOutSec,
     void *pValue, const boost::uint32_t uiNeedReadSize)
 {
+    boost::unique_lock<boost::mutex> lock(m_Mutex);
+
     boost::shared_ptr<boost::asio::deadline_timer> pTimer;
     if (0 != uiRdTimeOutSec)
     {
@@ -231,6 +235,8 @@ void TCPSessionOfServer::HandleRdTimeOut(const boost::system::error_code& e)
 
 void TCPSessionOfServer::Close()
 {
+    boost::unique_lock<boost::mutex> lock(m_Mutex);
+
     boost::system::error_code ec;
 
     m_Socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
