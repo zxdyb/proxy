@@ -688,10 +688,12 @@ void ProxySession::PreprocessProtoMsg(std::string &strProto, std::list<std::stri
         {
             IsSessionMsg = true;
 
-            char pUUID[32] = { 0 }; //注意，这里UUID不是以0结尾，需要复制到string类中去。
-            GenerateUUID(pUUID, sizeof(pUUID), (unsigned int)m_SeqNum);
-            std::string strUUID;
-            strUUID.assign(pUUID, sizeof(pUUID));
+            ////
+            //char pUUID[32] = { 0 }; //注意，这里UUID不是以0结尾，需要复制到string类中去。
+            //GenerateUUID(pUUID, sizeof(pUUID), (unsigned int)m_SeqNum);
+            //std::string strUUID;
+            //strUUID.assign(pUUID, sizeof(pUUID));
+            const std::string &strUUID = CreateUUID();
 
             m_ProxyHub.AddExangeMap(strUUID, shared_from_this());
             m_ProxyHub.RemoveExangeMap(m_strID);
@@ -709,7 +711,8 @@ void ProxySession::PreprocessProtoMsg(std::string &strProto, std::list<std::stri
             jsBody["UUID"] = strUUID; //pUUID; //"";
             jsBody["KS"] = "";
 
-            const std::string &strBody = jsBody.toStyledString();
+            Json::FastWriter fastwriter;                        
+            const std::string &strBody = fastwriter.write(jsBody);//jsBody.toStyledString();
             unsigned int uiMsgLen = 0;
             boost::shared_ptr<char> pMsg(m_ProxyHub.GeneratePackage("0", strSrcID, "1", strBody.data(), strBody.size(), uiMsgLen));
             strProto.clear();

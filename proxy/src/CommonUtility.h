@@ -13,6 +13,8 @@ public:
 
 void GenerateUUID(char *pUUIDBuffer, const unsigned int uiBufferSize, const unsigned int uiSeed);
 
+std::string CreateUUID();
+
 unsigned short crc16(const char* data, int length);
 
 std::string Encode64(unsigned char const* bytes_to_encode, unsigned int in_len);

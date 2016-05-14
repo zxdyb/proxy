@@ -1,4 +1,5 @@
 #include "CommonUtility.h"
+#include "uuid.h"
 
 
 CommonUtility::CommonUtility()
@@ -25,6 +26,34 @@ void GenerateUUID(char *pUUIDBuffer, const unsigned int uiBufferSize, const unsi
     //pUUIDBuffer[uiSize - 1] = 0;
 }
 
+
+std::string CreateUUID()
+{
+    typedef struct _GUID
+    {
+        unsigned int  Data1;
+        unsigned short Data2;
+        unsigned short Data3;
+        unsigned char  Data4[8];
+    } GUID_ST;
+
+    char buf[64] = { 0 };
+    GUID_ST guid;
+
+    uuid_generate(reinterpret_cast<unsigned char *>(&guid));
+
+    snprintf(
+        buf,
+        sizeof(buf),
+        "%08X%04X%04X%02X%02X%02X%02X%02X%02X%02X%02X",
+        guid.Data1, guid.Data2, guid.Data3,
+        guid.Data4[0], guid.Data4[1],
+        guid.Data4[2], guid.Data4[3],
+        guid.Data4[4], guid.Data4[5],
+        guid.Data4[6], guid.Data4[7]);
+
+    return std::string(buf);
+}
 
 static const short g_table[256] = {
     0, -32763, -32753, 10, -32741, 30, 20, -32751, -32717, 54, 60, -32711, 40, -32723, -32729, 34,
