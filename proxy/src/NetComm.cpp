@@ -851,7 +851,7 @@ void TimeOutHandler::SetTimeOutBase(const bool IsSecondBase)
 }
 
 Runner::Runner(const boost::uint32_t uiRunTdNum) :
-m_IOWork(m_IOService), m_uiRunTdNum(uiRunTdNum)
+m_IOWork(m_IOService), m_uiRunTdNum(uiRunTdNum), m_IOWorkSeq(m_IOServiceSeq)
 {
 
 }
@@ -873,6 +873,8 @@ void Runner::Run(bool isWaitRunFinished)
         m_RunThdGrp.add_thread(new boost::thread(boost::bind(&Runner::RunIOService, this)));
     }
 
+    m_RunThdGrp.add_thread(new boost::thread(boost::bind(&Runner::RunIOServiceSeq, this)));
+
     if (isWaitRunFinished)
     {
         m_RunThdGrp.join_all();
@@ -890,6 +892,16 @@ void Runner::RunIOService()
     }
 }
 
+void Runner::RunIOServiceSeq()
+{
+    boost::system::error_code error;
+    m_IOServiceSeq.run(error);
+    if (error)
+    {
+
+    }
+}
+
 void Runner::Stop()
 {
     if (0 == m_uiRunTdNum)
@@ -898,6 +910,7 @@ void Runner::Stop()
     }
 
     m_IOService.stop();
+    m_IOServiceSeq.stop();
 
     m_RunThdGrp.join_all();
 }
@@ -907,7 +920,108 @@ void Runner::Post(RunCallFunc func)
     m_IOService.post(func);
 }
 
+void Runner::PostSequence(RunCallFunc func, const std::string &strKey, const bool IsAsync)
+{
+    if (IsAsync)
+    {
+        m_IOServiceSeq.post(boost::bind(&Runner::PostSequenceInner, this, func, strKey));
+    }
+    else
+    {
+        PostSequenceInner(func, strKey);
+    }
+}
 
+void Runner::PostSequenceInner(RunCallFunc func, const std::string &strKey)
+{
+    bool blShareLock = true;
+    while (true)
+    {
+        boost::shared_lock<boost::shared_mutex> Rlk;
+        boost::unique_lock<boost::shared_mutex> Wlk;
+        if (blShareLock)
+        {
+            boost::shared_lock<boost::shared_mutex> lock(m_PendingMutex);
+            Rlk.swap(lock);
+        }
+        else
+        {
+            boost::unique_lock<boost::shared_mutex> lock(m_PendingMutex);
+            Wlk.swap(lock);
+        }
+
+        boost::shared_ptr<boost::mutex> pRfcMutex;
+        boost::shared_ptr<std::list<RunCallFunc> > pRfcList;
+
+        auto itFind = m_PendingTaskMap.find(strKey);
+        if (m_PendingTaskMap.end() != itFind)
+        {
+            pRfcMutex = itFind->second.m_RfcMutex;
+            pRfcList = itFind->second.m_RfcList;
+
+            boost::unique_lock<boost::mutex> lock(*pRfcMutex);
+            bool IsEmpty = pRfcList->empty();
+            pRfcList->push_back(func);
+            if (IsEmpty)
+            {
+                m_IOService.post(boost::bind(&Runner::SelfCall, this, pRfcMutex, pRfcList, strKey));
+            }
+
+            break;
+        }
+        else
+        {
+            if (blShareLock)
+            {
+                blShareLock = false;
+                continue;
+            }
+
+            Rfc rfc;
+            rfc.m_RfcList.reset(new std::list<RunCallFunc>);
+            rfc.m_RfcMutex.reset(new boost::mutex);
+            m_PendingTaskMap.insert(make_pair(strKey, rfc));
+            rfc.m_RfcList->push_back(func);
+
+            m_IOService.post(boost::bind(&Runner::SelfCall, this, rfc.m_RfcMutex, rfc.m_RfcList, strKey));
+            
+            break;
+
+        }
+    }    
+}
+
+void Runner::SelfCall(boost::shared_ptr<boost::mutex> pRfcMutex, boost::shared_ptr<std::list<RunCallFunc> > pRfcList, 
+    const std::string &strKey)
+{
+    {
+        boost::unique_lock<boost::mutex> lock(*pRfcMutex);
+        
+        auto itFront = pRfcList->front();        
+        itFront();
+        pRfcList->pop_front();
+
+        if (!pRfcList->empty())
+        {
+            m_IOService.post(boost::bind(&Runner::SelfCall, this, pRfcMutex, pRfcList, strKey));
+            return;
+        }
+    }
+
+    {
+        boost::unique_lock<boost::shared_mutex> lock(m_PendingMutex);
+        auto itFind = m_PendingTaskMap.find(strKey);
+        if (m_PendingTaskMap.end() != itFind)
+        {
+            boost::unique_lock<boost::mutex> lock(*itFind->second.m_RfcMutex);
+
+            if (itFind->second.m_RfcList->empty())
+            {
+                m_PendingTaskMap.erase(itFind);
+            }
+        }
+    }
+}
 
 
 TCPClientEx::TCPClientEx() : m_IOWork(m_IOService)

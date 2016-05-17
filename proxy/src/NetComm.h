@@ -364,6 +364,8 @@ public:
 
     void Post(RunCallFunc func);
 
+    void PostSequence(RunCallFunc func, const std::string &strKey, const bool IsAsync = false);
+
     void Run(bool isWaitRunFinished = false);
 
     void Stop();
@@ -371,6 +373,11 @@ public:
 private:
     void RunIOService();
 
+    void RunIOServiceSeq();
+
+    void PostSequenceInner(RunCallFunc func, const std::string &strKey);
+
+    void SelfCall(boost::shared_ptr<boost::mutex> pRfcMutex, boost::shared_ptr<std::list<RunCallFunc> > pRfcList, const std::string &strKey);
 
 private:
     boost::asio::io_service m_IOService;
@@ -379,6 +386,19 @@ private:
     boost::thread_group m_RunThdGrp;
 
     boost::uint32_t m_uiRunTdNum;
+
+    struct Rfc
+    {
+        boost::shared_ptr<boost::mutex> m_RfcMutex;
+        boost::shared_ptr<std::list<RunCallFunc> > m_RfcList;
+    };
+
+    typedef std::unordered_map<std::string,  Rfc> TaskMap;
+    TaskMap m_PendingTaskMap;
+    boost::shared_mutex m_PendingMutex;
+
+    boost::asio::io_service m_IOServiceSeq;
+    boost::asio::io_service::work m_IOWorkSeq;
 
 };
 
