@@ -49,6 +49,8 @@ void ProxyHub::AcceptCB(boost::shared_ptr<TCPSessionOfServer> pSession, const bo
     pSession->SetCallBack(boost::bind(&ProxySession::ReadCB, pProxySession, _1, _2, _3, _4), true);
     //pSession->SetCallBack(boost::bind(&ProxySession::WriteCB, pProxySession, _1, _2, _3, _4), false);
 
+    pSession->SetTimeoutCB(boost::bind(&ProxySession::ReadTimeoutCB, pProxySession, _1), true);
+
     char *pBuffer = new char[BUFFER_SIZE];
     memset(pBuffer, 0, BUFFER_SIZE);
 
@@ -286,7 +288,8 @@ void ProxyHub::ProcessProtocol(boost::shared_ptr<std::list<std::string> > pProto
         ++itBegin;
         ++itBeginMsg;
     }
-   
+    
+    pSrcSession->UpdateWriteCallSnapshot();
     pSrcSession->BindRead();
 
 }
@@ -322,7 +325,7 @@ bool ProxyHub::IsBussnessAuth(char *pPos, boost::uint32_t uiReadPos)
 
 ProxySession::ProxySession(ProxyHub &proxyhub, boost::shared_ptr<TCPSessionOfServer> pSession)
     : m_ProxyHub(proxyhub), m_Status(RUN), m_Func(NULL), m_pTCPSession(pSession), m_SeqNum(0), m_SrcIDReplaceByIncSeq(false), m_CreateSIDOnConnected(false),
-    m_uiAsyncReadTimeOut(10)
+    m_uiAsyncReadTimeOut(10), m_uiWriteCallNumbers(0), m_uiWriteCallSnapshot(m_uiWriteCallNumbers)
 {
     LOG_INFO_RLD("Proxy session created");
 }
@@ -442,6 +445,7 @@ void ProxySession::ReadCB(boost::shared_ptr<TCPSessionOfServer> pSession,
         delete pDstIDList;
         pDstIDList = NULL;
 
+        UpdateWriteCallSnapshot();
         pSession->AsyncRead((pUsedBuffer + uiReadPos), (uiUsedBufferSize - uiReadPos), m_uiAsyncReadTimeOut, (void *)pBuffer);
     }
 
@@ -473,6 +477,26 @@ void ProxySession::WriteCB(boost::shared_ptr<TCPSessionOfServer> pSession,
 
     //m_SendingMutex.unlock();
 
+}
+
+
+bool ProxySession::ReadTimeoutCB(boost::shared_ptr<TCPSessionOfServer> pSession)
+{
+    bool IsContinueTimeout = true;
+    //IsContinueTimeout为false，则表示在读超时这段时间内，没有发生写的动作，则认为该Session是真的超时了
+    if (m_uiWriteCallSnapshot < m_uiWriteCallNumbers)
+    {
+        IsContinueTimeout = true;
+    }
+    else
+    {
+        IsContinueTimeout = false;
+    }
+
+    LOG_INFO_RLD("Read timeout and continue flag is " << (IsContinueTimeout ? "true" : "false") << ", m_uiWriteCallSnapshot is " << m_uiWriteCallSnapshot
+        << ", m_uiWriteCallNumbers is " << m_uiWriteCallNumbers);
+
+    return IsContinueTimeout;
 }
 
 bool ProxySession::ParseProtocol(char *pBuffer, const boost::uint32_t uiSize, std::list<std::string> *pstrProtoList,
@@ -598,6 +622,8 @@ void ProxySession::SyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferS
         boost::shared_ptr<TCPSessionOfServer> tcpSession = m_pTCPSession.lock();
         if (NULL != tcpSession.get())
         {
+            ++m_uiWriteCallNumbers;
+
             //tcpSession->AsyncWrite(pInputBuffer, uiBufferSize, NULL);
             boost::uint32_t uiWrited = 0;
             std::string strErrorMsg;
@@ -614,6 +640,10 @@ void ProxySession::SyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferS
                 //}
                 
                 LOG_ERROR_RLD("SyncWrite error : " << strErrorMsg << " id is " << m_strID);
+            }
+            else
+            {
+                ++m_uiWriteCallNumbers;
             }
         }
         else

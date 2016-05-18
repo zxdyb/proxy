@@ -79,7 +79,7 @@ bool UDPServer::ReceiveMessageSyn( char *pMessage, const boost::uint32_t uiSize 
 
 TCPSessionOfServer::TCPSessionOfServer(boost::asio::io_service &TMIOService, boost::asio::io_service& io_service,
     ServerReadOrWriteCallback RdCB, ServerReadOrWriteCallback WtCB) : 
-    m_TMIOService(TMIOService), m_Socket(io_service), m_RdCB(RdCB), m_WtCB(WtCB)
+    m_TMIOService(TMIOService), m_Socket(io_service), m_RdCB(RdCB), m_WtCB(WtCB), m_RdTcb(NULL), m_WtTcb(NULL)
 {
 
 }
@@ -101,7 +101,7 @@ void TCPSessionOfServer::AsyncWrite(char *pInputBuffer, const boost::uint32_t ui
         boost::system::error_code ecn;
         pTimer.reset(new boost::asio::deadline_timer(m_TMIOService));
         pTimer->expires_from_now(boost::posix_time::seconds(uiWtTimeOutSec), ecn);
-        pTimer->async_wait(boost::bind(&TCPSessionOfServer::HandleWtTimeOut, shared_from_this(),
+        pTimer->async_wait(boost::bind(&TCPSessionOfServer::HandleWtTimeOut, shared_from_this(), pTimer, uiWtTimeOutSec,
             boost::asio::placeholders::error));
     }
 
@@ -122,7 +122,7 @@ void TCPSessionOfServer::AsyncRead(char *pOutputBuffer, const boost::uint32_t ui
         boost::system::error_code ecn;
         pTimer.reset(new boost::asio::deadline_timer(m_TMIOService));
         pTimer->expires_from_now(boost::posix_time::seconds(uiRdTimeOutSec), ecn);
-        pTimer->async_wait(boost::bind(&TCPSessionOfServer::HandleRdTimeOut, shared_from_this(),
+        pTimer->async_wait(boost::bind(&TCPSessionOfServer::HandleRdTimeOut, shared_from_this(), pTimer, uiRdTimeOutSec,
             boost::asio::placeholders::error));
     }
 
@@ -192,6 +192,18 @@ void TCPSessionOfServer::SetCallBack(ServerReadOrWriteCallback cb, const bool Is
     }
 }
 
+void TCPSessionOfServer::SetTimeoutCB(TimeoutCB tcb, const bool IsReadCB)
+{
+    if (IsReadCB)
+    {
+        m_RdTcb = tcb;
+    }
+    else
+    {
+        m_WtTcb = tcb;
+    }    
+}
+
 TCPSessionOfServer::~TCPSessionOfServer()
 {
     printf("Tcp session is destroy.\n");
@@ -215,21 +227,54 @@ bool TCPSessionOfServer::SyncWrite(char *pInputBuffer, const boost::uint32_t uiB
 
 void TCPSessionOfServer::SocketCancel(const boost::system::error_code& e)
 {
+    Close();
+}
+
+void TCPSessionOfServer::HandleWtTimeOut(boost::shared_ptr<boost::asio::deadline_timer> pTimer, const boost::uint32_t uiWtTimeOutSec, 
+    const boost::system::error_code& e)
+{
     if (e)
     {
         return; //Timer canceled.
     }
 
-    Close();
-}
-
-void TCPSessionOfServer::HandleWtTimeOut(const boost::system::error_code& e)
-{
+    if (NULL != m_WtTcb)
+    {
+        bool IsContinueTimeout = m_WtTcb(shared_from_this());
+        if (IsContinueTimeout)
+        {
+            boost::system::error_code ecn;
+            pTimer->expires_from_now(boost::posix_time::seconds(uiWtTimeOutSec), ecn);
+            pTimer->async_wait(boost::bind(&TCPSessionOfServer::HandleWtTimeOut, shared_from_this(), pTimer, uiWtTimeOutSec,
+                boost::asio::placeholders::error));
+            return;
+        }
+    }
+    
     SocketCancel(e);
 }
 
-void TCPSessionOfServer::HandleRdTimeOut(const boost::system::error_code& e)
+void TCPSessionOfServer::HandleRdTimeOut(boost::shared_ptr<boost::asio::deadline_timer> pTimer, const boost::uint32_t uiRdTimeOutSec,
+    const boost::system::error_code& e)
 {
+    if (e)
+    {
+        return; //Timer canceled.
+    }
+
+    if (NULL != m_RdTcb)
+    {
+        bool IsContinueTimeout = m_RdTcb(shared_from_this());
+        if (IsContinueTimeout)
+        {
+            boost::system::error_code ecn;
+            pTimer->expires_from_now(boost::posix_time::seconds(uiRdTimeOutSec), ecn);
+            pTimer->async_wait(boost::bind(&TCPSessionOfServer::HandleRdTimeOut, shared_from_this(), pTimer, uiRdTimeOutSec,
+                boost::asio::placeholders::error));
+            return;
+        }
+    }    
+
     SocketCancel(e);
 }
 

@@ -34,6 +34,8 @@ public:
 
     void WriteCB(boost::shared_ptr<TCPSessionOfServer> pSession,
         const boost::system::error_code &ec, std::size_t bytes_transferred, void *pValue);
+
+    bool ReadTimeoutCB (boost::shared_ptr<TCPSessionOfServer> pSession);
     
     void SyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize);
 
@@ -78,6 +80,11 @@ public:
     {
         m_uiAsyncReadTimeOut = uiAsyncReadTimeOut;
     };
+
+    inline void UpdateWriteCallSnapshot()
+    {
+        m_uiWriteCallSnapshot = m_uiWriteCallNumbers;
+    };
     
     static const boost::uint32_t RUN = 1;
     static const boost::uint32_t STOP = 0;
@@ -112,7 +119,10 @@ private:
     bool m_CreateSIDOnConnected;
 
     unsigned int m_uiAsyncReadTimeOut;
-        
+    
+    boost::atomic_uint64_t m_uiWriteCallNumbers;
+
+    boost::uint64_t m_uiWriteCallSnapshot;
 };
 
 class ProxyHub

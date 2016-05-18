@@ -67,6 +67,7 @@ class TCPSessionOfServer;
 typedef boost::function<void(boost::shared_ptr<TCPSessionOfServer>, const boost::system::error_code&)> AcceptedCallback;
 typedef boost::function<void(boost::shared_ptr<TCPSessionOfServer>, const boost::system::error_code&, std::size_t, void *)> ServerReadOrWriteCallback;
 typedef boost::function<std::size_t(const boost::system::error_code& error, std::size_t bytes_transferred)> ConditionCB;
+typedef boost::function<bool(boost::shared_ptr<TCPSessionOfServer>)> TimeoutCB;
 
 
 
@@ -81,6 +82,8 @@ public:
 
     void SetCallBack(ServerReadOrWriteCallback cb, const bool IsReadCB);
 
+    void SetTimeoutCB(TimeoutCB tcb, const bool IsReadCB);
+
 	boost::asio::ip::tcp::socket& GetSocket();
 
     void AsyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, const boost::uint32_t uiWtTimeOutSec = 0,
@@ -92,9 +95,9 @@ public:
     bool SyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, boost::uint32_t &uiSizeofWrited,
         std::string &strErrMsg);
 
-    void HandleWtTimeOut(const boost::system::error_code& e);
+    void HandleWtTimeOut(boost::shared_ptr<boost::asio::deadline_timer> pTimer, const boost::uint32_t uiWtTimeOutSec, const boost::system::error_code& e);
 
-    void HandleRdTimeOut(const boost::system::error_code& e);
+    void HandleRdTimeOut(boost::shared_ptr<boost::asio::deadline_timer> pTimer, const boost::uint32_t uiRdTimeOutSec, const boost::system::error_code& e);
 
     void Close();
     
@@ -113,6 +116,8 @@ private:
 
 	ServerReadOrWriteCallback m_RdCB;
 	ServerReadOrWriteCallback m_WtCB;
+    TimeoutCB m_RdTcb;
+    TimeoutCB m_WtTcb;
 
     boost::mutex m_Mutex;
 };
