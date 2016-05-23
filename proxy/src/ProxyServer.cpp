@@ -697,12 +697,14 @@ void ProxySession::PreprocessProtoMsg(std::string &strProto, std::list<std::stri
         bool IsZeroPeer = false;
         if (m_strID.empty())
         {
-            m_strID = m_SrcIDReplaceByIncSeq ? m_strSeqNum : strSrcID;
-
-            if (!Auth(m_strID))
+            const std::string &strToAuthID = m_SrcIDReplaceByIncSeq ? m_strSeqNum : strSrcID;
+            
+            if (!Auth(strToAuthID))
             {
                 return;
             }
+
+            m_strID = strToAuthID;
 
             m_ProxyHub.AddExangeMap(m_strID, shared_from_this());
             IsZeroPeer = m_ProxyHub.AddExangeMapZero(shared_from_this(), strProto);
