@@ -207,6 +207,8 @@ public:
 
     void HandleRdTimeOut(const boost::system::error_code& e);
 
+    void Close();
+
 private:
     void SocketCancel(const boost::system::error_code& e);
 
@@ -219,6 +221,8 @@ private:
 
     boost::uint32_t m_uiRdTimeOutSec;
     boost::uint32_t m_uiWtTimeOutSec;
+
+    boost::mutex m_Mutex;
 
 };
 
@@ -250,7 +254,7 @@ public:
         const boost::uint32_t uiRdTimeOutSec = 0,
         const boost::uint32_t uiWtTimeOutSec = 0);
 
-    //void Close();
+    void Close();
 
     void Stop();
 

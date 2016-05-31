@@ -452,7 +452,8 @@ void TCPSessionOfClient::AsyncRead(char *pOutputBuffer, const boost::uint32_t ui
                                                         const boost::uint32_t uiRdTimeOutSec,
                                                         void *pValue, const boost::uint32_t uiNeedReadSize)
 {
-        
+    boost::unique_lock<boost::mutex> lock(m_Mutex);
+
     boost::uint32_t uiTimeOutSec = 0;
 
     uiTimeOutSec = (0 != uiRdTimeOutSec) ? uiRdTimeOutSec : m_uiRdTimeOutSec;
@@ -487,6 +488,8 @@ void TCPSessionOfClient::AsyncWrite(char *pInputBuffer, const boost::uint32_t ui
                                                         const boost::uint32_t uiWtTimeOutSec,
                                                         void *pValue)
 {
+    boost::unique_lock<boost::mutex> lock(m_Mutex);
+
     boost::uint32_t uiTimeOutSec = 0;
 
     uiTimeOutSec = (0 != uiWtTimeOutSec) ? uiWtTimeOutSec : m_uiWtTimeOutSec;
@@ -517,6 +520,26 @@ void TCPSessionOfClient::HandleRdTimeOut(const boost::system::error_code& e)
     SocketCancel(e);
 }
 
+void TCPSessionOfClient::Close()
+{
+    boost::unique_lock<boost::mutex> lock(m_Mutex);
+
+    boost::system::error_code ec;
+
+    m_Socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    if (ec)
+    {
+        //log to file, continue to close socket
+    }
+
+    boost::system::error_code ec2;
+    m_Socket.close(ec2);
+    if (ec2)
+    {
+        //log to file
+    }
+}
+
 void TCPSessionOfClient::SocketCancel(const boost::system::error_code& e)
 {
     
@@ -525,12 +548,7 @@ void TCPSessionOfClient::SocketCancel(const boost::system::error_code& e)
         return; //Timer canceled.
     }
 
-    boost::system::error_code ec;
-    m_Socket.cancel(ec);
-    if (ec)
-    {
-        //log to file
-    }
+    Close();
 }
 
 bool TCPSessionOfClient::SyncWrite(char *pInputBuffer, const boost::uint32_t uiBufferSize, boost::uint32_t &uiSizeofWrited, std::string &strErrMsg)
@@ -795,6 +813,11 @@ void TCPClient::SetCallBack(ConnectedCallback CnBck, ReadOrWriteCallback RdBck, 
     m_Session.reset(new TCPSessionOfClient(m_TimeIOService, m_IOService, RdBck, WtBck, uiRdTimeOutSec, 
         uiWtTimeOutSec));
 
+}
+
+void TCPClient::Close()
+{
+    m_Session->Close();
 }
 
 //void TCPClient::Close()
