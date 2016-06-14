@@ -5,6 +5,8 @@
 //#include "stdafx.h"
 //#include "../Storage/NetComm.h"
 //#else
+
+#include "ForkChild.h"
 #include "NetComm.h"
 
 //#endif
@@ -146,11 +148,7 @@ static std::string GetConfig(const std::string &strItem)
 int main(int argc, char* argv[])
 {    
     
-    InitLog();
-    
-    LOG_INFO_RLD("Proxy Server begin...");
-
-    if (4 <= argc)
+    if (4 < argc)
     {
         std::string strSrcIDBegin = argv[1];
         std::string strDstIDBegin = argv[2];
@@ -225,6 +223,7 @@ int main(int argc, char* argv[])
     }
     else
     {
+        
         unsigned short usPort = 6789;
         if (2 <= argc)
         {
@@ -237,7 +236,22 @@ int main(int argc, char* argv[])
             uiThreadNum = (unsigned int)atoi(argv[2]);
         }
 
-        LOG_INFO_RLD("Proxy runing thread number is " << uiThreadNum << " port is " << usPort);
+        bool IsNeedDaemonRun = false;
+        if (4 <= argc && std::string("-d") == argv[3])
+        {
+            IsNeedDaemonRun = true;
+        }
+
+        if (IsNeedDaemonRun)
+        {
+            ForkChild();
+        }
+
+        InitLog();
+
+        LOG_INFO_RLD("Proxy Server begin...");
+
+        LOG_INFO_RLD("Proxy runing thread number is " << uiThreadNum << " port is " << usPort << ", daemon status is " << IsNeedDaemonRun);
 
         ProxyHub *phb = NULL;
         try
