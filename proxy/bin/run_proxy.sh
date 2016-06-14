@@ -6,7 +6,7 @@ then
 fi
 
 td=2;
-if [ $# -eq 2 ]
+if [ $# -ge 2 ]
 then
     td=$2;
 fi
@@ -18,5 +18,10 @@ fi
 ulimit -HSn 65536
 ulimit -c unlimited
 chmod a+x ./proxy
-setsid ./proxy $1 $td > /dev/null &
+if [ $# -le 2 ]
+then
+  setsid ./proxy $1 $td > /dev/null &
+else
+  ./proxy $1 $td $3
+fi
 pidof proxy
