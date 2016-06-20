@@ -333,7 +333,13 @@ class TimeOutHandler : public boost::noncopyable
 {
 public:
     TimeOutHandler(TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop = true);
+    TimeOutHandler(boost::asio::io_service &IOService, boost::asio::io_service::work &IOWork,
+        TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop = true);
     ~TimeOutHandler();
+
+    void Begin();
+
+    void End(); //注意，目前实现只支持在m_isLoop为false的情况下的调用，为true时，不支持
 
     void SetTimeOutBase(const bool IsSecondBase);
 
@@ -349,10 +355,13 @@ private:
     void HandleTimeOut(const boost::system::error_code& e);
 
 private:
-    boost::asio::io_service m_TimeIOService;
-    boost::asio::io_service::work m_TimeIOWork;
+    boost::asio::io_service &m_TimeIOService;
+    boost::asio::io_service::work &m_TimeIOWork;
+    boost::shared_ptr<boost::asio::io_service> m_pTimeIOService;
+    boost::shared_ptr<boost::asio::io_service::work> m_pTimeIOWork;
+    
     boost::asio::deadline_timer m_Timer;
-
+    
     TimeOutCallback m_cb;
     const boost::uint32_t m_uiTimeOutSec;
     boost::thread_group m_RunThdGrp;
@@ -363,6 +372,25 @@ private:
 };
 
 
+class TimeOutHandlerEx : public boost::noncopyable
+{
+public:
+    TimeOutHandlerEx();
+    ~TimeOutHandlerEx();
+
+    boost::shared_ptr<TimeOutHandler> Create(TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop = true);
+
+    void Run(const boost::uint32_t uiThreadNum, bool isWaitRunFinished = false);
+
+    void Stop();
+
+private:
+    void RunIOService();
+
+    boost::asio::io_service m_IOService;
+    boost::asio::io_service::work m_IOWork;
+    boost::thread_group m_RunThdGrp;
+};
 
 
 class Runner : public boost::noncopyable

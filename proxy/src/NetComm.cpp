@@ -833,14 +833,50 @@ void TCPClient::Close()
 //}
 
 TimeOutHandler::TimeOutHandler(TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop) : 
-m_TimeIOWork(m_TimeIOService), m_Timer(m_TimeIOService), m_cb(cb), m_uiTimeOutSec(uiTimeOutSec), m_isLoop(isLoop), m_IsSecondBase(true)
+m_TimeIOService(*new boost::asio::io_service), m_TimeIOWork(*new boost::asio::io_service::work(m_TimeIOService)), 
+m_pTimeIOService(&m_TimeIOService), m_pTimeIOWork(&m_TimeIOWork),
+m_Timer(m_TimeIOService), m_cb(cb), m_uiTimeOutSec(uiTimeOutSec), m_isLoop(isLoop), m_IsSecondBase(true)
 {
     
+}
+
+TimeOutHandler::TimeOutHandler(boost::asio::io_service &IOService, boost::asio::io_service::work &IOWork, 
+    TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop /*= true*/) : 
+    m_TimeIOService(IOService), m_TimeIOWork(IOWork),
+    m_Timer(m_TimeIOService), m_cb(cb), m_uiTimeOutSec(uiTimeOutSec), m_isLoop(isLoop), m_IsSecondBase(true)
+{
+
 }
 
 TimeOutHandler::~TimeOutHandler()
 {
 
+}
+
+void TimeOutHandler::Begin()
+{
+    if (0 == m_uiTimeOutSec)
+    {
+        return;
+    }
+
+    boost::system::error_code ecn;
+    if (m_IsSecondBase)
+    {
+        m_Timer.expires_from_now(boost::posix_time::seconds(m_uiTimeOutSec), ecn);
+    }
+    else
+    {
+        m_Timer.expires_from_now(boost::posix_time::milliseconds(m_uiTimeOutSec), ecn);
+    }
+
+    m_Timer.async_wait(boost::bind(&TimeOutHandler::HandleTimeOut, this, boost::asio::placeholders::error));
+}
+
+void TimeOutHandler::End()
+{
+    boost::system::error_code et;
+    m_Timer.cancel(et);
 }
 
 void TimeOutHandler::Run()
@@ -1401,3 +1437,47 @@ bool TickCountMgr::Reset(boost::shared_ptr<boost::atomic_uint64_t> pTick)
 //    return true;
 //}
 
+TimeOutHandlerEx::TimeOutHandlerEx() : m_IOWork(m_IOService)
+{
+
+}
+
+TimeOutHandlerEx::~TimeOutHandlerEx()
+{
+
+}
+
+boost::shared_ptr<TimeOutHandler> TimeOutHandlerEx::Create(TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop /*= true*/)
+{
+    return boost::shared_ptr<TimeOutHandler>(new TimeOutHandler(m_IOService, m_IOWork, cb, uiTimeOutSec, isLoop));
+}
+
+void TimeOutHandlerEx::Run(const boost::uint32_t uiThreadNum, bool isWaitRunFinished /*= false*/)
+{
+    for (boost::uint32_t i = 0; i < uiThreadNum; ++i)
+    {
+        m_RunThdGrp.add_thread(new boost::thread(boost::bind(&TimeOutHandlerEx::RunIOService, this)));
+    }
+
+    if (isWaitRunFinished)
+    {
+        m_RunThdGrp.join_all();
+    }
+}
+
+void TimeOutHandlerEx::Stop()
+{
+    m_IOService.stop();
+
+    m_RunThdGrp.join_all();
+}
+
+void TimeOutHandlerEx::RunIOService()
+{
+    boost::system::error_code error;
+    m_IOService.run(error);
+    if (error)
+    {
+
+    }
+}
