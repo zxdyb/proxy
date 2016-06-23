@@ -349,6 +349,8 @@ public:
 
     void SetLoop(bool bIsLoop) { m_isLoop = bIsLoop; }
 
+    void SetTimeOutCallBack(TimeOutCallback cb);
+
 private:
     void RunTimeIOService();
 

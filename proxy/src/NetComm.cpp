@@ -924,6 +924,11 @@ void TimeOutHandler::Stop()
     m_RunThdGrp.join_all();
 }
 
+void TimeOutHandler::SetTimeOutCallBack(TimeOutCallback cb)
+{
+    m_cb = cb;
+}
+
 void TimeOutHandler::HandleTimeOut(const boost::system::error_code& e)
 {
     if (NULL != m_cb)
