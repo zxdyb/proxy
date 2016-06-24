@@ -898,7 +898,7 @@ void TimeOutHandler::Run()
         m_Timer.expires_from_now(boost::posix_time::milliseconds(m_uiTimeOutSec), ecn);
     }
 
-    m_Timer.async_wait(boost::bind(&TimeOutHandler::HandleTimeOut, shared_from_this(), boost::asio::placeholders::error));
+    m_Timer.async_wait(boost::bind(&TimeOutHandler::HandleTimeOut, this, boost::asio::placeholders::error));
 
 }
 
@@ -951,7 +951,7 @@ void TimeOutHandler::HandleTimeOut(const boost::system::error_code& e)
         m_Timer.expires_from_now(boost::posix_time::milliseconds(m_uiTimeOutSec), ecn);
     }
     
-    m_Timer.async_wait(boost::bind(&TimeOutHandler::HandleTimeOut, shared_from_this(), boost::asio::placeholders::error));
+    m_Timer.async_wait(boost::bind(&TimeOutHandler::HandleTimeOut, this, boost::asio::placeholders::error));
 }
 
 void TimeOutHandler::SetTimeOutBase(const bool IsSecondBase)
