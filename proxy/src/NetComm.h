@@ -329,7 +329,7 @@ private:
 
 typedef boost::function<void(const boost::system::error_code&)>TimeOutCallback;
 
-class TimeOutHandler : public boost::noncopyable
+class TimeOutHandler : public boost::enable_shared_from_this<TimeOutHandler>, public boost::noncopyable
 {
 public:
     TimeOutHandler(TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop = true);
