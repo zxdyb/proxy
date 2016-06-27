@@ -970,7 +970,7 @@ Runner::~Runner()
 
 }
 
-void Runner::Run(bool isWaitRunFinished)
+void Runner::Run(bool isWaitRunFinished, bool isSeqEnabled)
 {
     if (0 == m_uiRunTdNum)
     {
@@ -982,7 +982,10 @@ void Runner::Run(bool isWaitRunFinished)
         m_RunThdGrp.add_thread(new boost::thread(boost::bind(&Runner::RunIOService, this)));
     }
 
-    m_RunThdGrp.add_thread(new boost::thread(boost::bind(&Runner::RunIOServiceSeq, this)));
+    if (isSeqEnabled)
+    {
+        m_RunThdGrp.add_thread(new boost::thread(boost::bind(&Runner::RunIOServiceSeq, this)));
+    }
 
     if (isWaitRunFinished)
     {

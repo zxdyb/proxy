@@ -405,7 +405,7 @@ public:
 
     void PostSequence(RunCallFunc func, const std::string &strKey, const bool IsAsync = false);
 
-    void Run(bool isWaitRunFinished = false);
+    void Run(bool isWaitRunFinished = false, bool isSeqEnabled = false);
 
     void Stop();
 
