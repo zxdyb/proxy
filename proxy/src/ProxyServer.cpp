@@ -325,7 +325,7 @@ bool ProxyHub::IsBussnessAuth(char *pPos, boost::uint32_t uiReadPos)
 
 ProxySession::ProxySession(ProxyHub &proxyhub, boost::shared_ptr<TCPSessionOfServer> pSession)
     : m_ProxyHub(proxyhub), m_Status(RUN), m_Func(NULL), m_pTCPSession(pSession), m_SeqNum(0), m_SrcIDReplaceByIncSeq(false), m_CreateSIDOnConnected(false),
-    m_uiAsyncReadTimeOut(10), m_uiWriteCallNumbers(0), m_uiWriteCallSnapshot(m_uiWriteCallNumbers)
+    m_uiAsyncReadTimeOut(10), m_uiWriteCallNumbers(0), m_uiWriteCallSnapshot(0)
 {
     LOG_INFO_RLD("Proxy session created");
 }
@@ -494,7 +494,9 @@ bool ProxySession::ReadTimeoutCB(boost::shared_ptr<TCPSessionOfServer> pSession)
     }
 
     LOG_INFO_RLD("Read timeout and continue flag is " << (IsContinueTimeout ? "true" : "false") << ", m_uiWriteCallSnapshot is " << m_uiWriteCallSnapshot
-        << ", m_uiWriteCallNumbers is " << m_uiWriteCallNumbers);
+        << ", m_uiWriteCallNumbers is " << m_uiWriteCallNumbers << " remote address is " << pSession->GetSocket().remote_endpoint().address().to_string());
+
+    UpdateWriteCallSnapshot(); //Reset snapshot number
 
     return IsContinueTimeout;
 }

@@ -83,7 +83,9 @@ public:
 
     inline void UpdateWriteCallSnapshot()
     {
-        m_uiWriteCallSnapshot = m_uiWriteCallNumbers;
+        boost::uint64_t uiTmpNum = m_uiWriteCallNumbers;
+
+        m_uiWriteCallSnapshot = uiTmpNum;
     };
     
     static const boost::uint32_t RUN = 1;
@@ -122,7 +124,7 @@ private:
     
     boost::atomic_uint64_t m_uiWriteCallNumbers;
 
-    boost::uint64_t m_uiWriteCallSnapshot;
+    boost::atomic_uint64_t m_uiWriteCallSnapshot;
 };
 
 class ProxyHub
