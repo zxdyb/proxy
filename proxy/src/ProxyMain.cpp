@@ -24,6 +24,7 @@
 #include <boost/lexical_cast.hpp>
 
 #define CONFIG_FILE_NAME "proxy.ini"
+#define PROXY_VERSION "[v1.0.3] "
 
 #ifdef _MSC_VER
 #define strcasecmp _stricmp
@@ -125,7 +126,7 @@ static void InitLog()
     std::string strFileName =strLogInnerShowName + ".log";
     LogPath = LogPath / strFileName;
 
-    LogRLD::GetInstance().Init(iLoglevel, strHost, strLogInnerShowName, LogPath.string(), iSchedule, iMaxLogFileBackupNum);
+    LogRLD::GetInstance().Init(iLoglevel, strHost, strLogInnerShowName, LogPath.string(), iSchedule, iMaxLogFileBackupNum, PROXY_VERSION);
 
 }
 

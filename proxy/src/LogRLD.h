@@ -38,7 +38,7 @@ public:
 
     bool Init(const int iLoglevel =LogRLD::INFO_LOG_LEVEL, const std::string &strHostName = "App(127.0.0.1)", 
         const std::string &strLogInnerShowName = "AppName", const std::string &strLogFilePath = "./App.log", 
-        const int iSchedule = DAILY_LOG_SCHEDULE, const int iMaxLogFileBackupNum = 10);
+        const int iSchedule = DAILY_LOG_SCHEDULE, const int iMaxLogFileBackupNum = 10, const std::string &strVersion = "1.0.0 ");
 
     static const int OFF_LOG_LEVEL = log4cplus::OFF_LOG_LEVEL;
 

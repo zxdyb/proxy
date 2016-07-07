@@ -19,7 +19,7 @@ LogRLD &LogRLD::GetInstance()
 }
 
 bool LogRLD::Init(const int iLoglevel, const std::string &strHostName, const std::string &strLogInnerShowName, const std::string &strLogFilePath,
-    const int iSchedule, const int iMaxLogFileBackupNum)
+    const int iSchedule, const int iMaxLogFileBackupNum, const std::string &strVersion)
 {
     log4cplus::DailyRollingFileSchedule schedulelog = (log4cplus::DailyRollingFileSchedule)iSchedule;
     
@@ -30,7 +30,7 @@ bool LogRLD::Init(const int iLoglevel, const std::string &strHostName, const std
 
     /* step 2: Instantiate a layout object */
     //std::string pattern = "%D{%Y%m%d %H:%M:%S.%Q} [%s-thread-%t ] %p   %s - %m - %l%n";
-    std::string strPattern = "%D{%Y%m%d %H:%M:%S.%Q} [" + strHostName + "-thread-%T ] %p   " + strLogInnerShowName + " - %m - %l%n";
+    std::string strPattern = "%D{%Y%m%d %H:%M:%S.%Q} [" + strHostName + "-thread-%T ] %p   " + strLogInnerShowName + " - " + strVersion + "%m - %l%n";
     
 
     std::auto_ptr<log4cplus::Layout> _layout(new log4cplus::PatternLayout(strPattern));
