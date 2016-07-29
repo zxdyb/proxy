@@ -339,7 +339,7 @@ public:
 
     void Begin();
 
-    void End(); //注意，目前实现只支持在m_isLoop为false的情况下的调用，为true时，不支持
+    void End();
 
     void SetTimeOutBase(const bool IsSecondBase);
 
@@ -371,6 +371,10 @@ private:
     bool m_isLoop;
 
     bool m_IsSecondBase;
+
+    boost::mutex m_LoopMutex;
+    const unsigned int m_uiSeparateModel;
+    bool m_IsEnded;
 };
 
 

@@ -835,7 +835,7 @@ void TCPClient::Close()
 TimeOutHandler::TimeOutHandler(TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop) : 
 m_TimeIOService(*new boost::asio::io_service), m_TimeIOWork(*new boost::asio::io_service::work(m_TimeIOService)), 
 m_pTimeIOService(&m_TimeIOService), m_pTimeIOWork(&m_TimeIOWork),
-m_Timer(m_TimeIOService), m_cb(cb), m_uiTimeOutSec(uiTimeOutSec), m_isLoop(isLoop), m_IsSecondBase(true)
+m_Timer(m_TimeIOService), m_cb(cb), m_uiTimeOutSec(uiTimeOutSec), m_isLoop(isLoop), m_IsSecondBase(true), m_uiSeparateModel(1), m_IsEnded(false)
 {
     
 }
@@ -843,7 +843,7 @@ m_Timer(m_TimeIOService), m_cb(cb), m_uiTimeOutSec(uiTimeOutSec), m_isLoop(isLoo
 TimeOutHandler::TimeOutHandler(boost::asio::io_service &IOService, boost::asio::io_service::work &IOWork, 
     TimeOutCallback cb, const boost::uint32_t uiTimeOutSec, const bool isLoop /*= true*/) : 
     m_TimeIOService(IOService), m_TimeIOWork(IOWork),
-    m_Timer(m_TimeIOService), m_cb(cb), m_uiTimeOutSec(uiTimeOutSec), m_isLoop(isLoop), m_IsSecondBase(true)
+    m_Timer(m_TimeIOService), m_cb(cb), m_uiTimeOutSec(uiTimeOutSec), m_isLoop(isLoop), m_IsSecondBase(true), m_uiSeparateModel(0), m_IsEnded(false)
 {
 
 }
@@ -855,6 +855,11 @@ TimeOutHandler::~TimeOutHandler()
 
 void TimeOutHandler::Begin()
 {
+    if (m_uiSeparateModel)
+    {
+        return;
+    }
+
     if (0 == m_uiTimeOutSec)
     {
         return;
@@ -875,12 +880,26 @@ void TimeOutHandler::Begin()
 
 void TimeOutHandler::End()
 {
+    if (m_uiSeparateModel)
+    {
+        return;
+    }
+
+    boost::unique_lock<boost::mutex> lock(m_LoopMutex);
+
     boost::system::error_code et;
     m_Timer.cancel(et);
+
+    m_IsEnded = true;
 }
 
 void TimeOutHandler::Run()
 {
+    if (!m_uiSeparateModel)
+    {
+        return;
+    }
+
     if (0 == m_uiTimeOutSec)
     {
         return;
@@ -914,6 +933,11 @@ void TimeOutHandler::RunTimeIOService()
 
 void TimeOutHandler::Stop()
 {
+    if (!m_uiSeparateModel)
+    {
+        return;
+    }
+
     if (0 == m_uiTimeOutSec)
     {
         return;
@@ -941,6 +965,20 @@ void TimeOutHandler::HandleTimeOut(const boost::system::error_code& e)
         return;
     }
 
+    //boost::this_thread::sleep(boost::posix_time::seconds(15));
+    boost::unique_lock<boost::mutex> lk;
+    if (!m_uiSeparateModel)
+    {
+        boost::unique_lock<boost::mutex> lock(m_LoopMutex);
+
+        if (m_IsEnded)
+        {
+            return;
+        }
+
+        lk.swap(lock);
+    }
+
     boost::system::error_code ecn;
     if (m_IsSecondBase)
     {
@@ -951,7 +989,14 @@ void TimeOutHandler::HandleTimeOut(const boost::system::error_code& e)
         m_Timer.expires_from_now(boost::posix_time::milliseconds(m_uiTimeOutSec), ecn);
     }
     
-    m_Timer.async_wait(boost::bind(&TimeOutHandler::HandleTimeOut, this, boost::asio::placeholders::error));
+    if (!m_uiSeparateModel)
+    {
+        m_Timer.async_wait(boost::bind(&TimeOutHandler::HandleTimeOut, shared_from_this(), boost::asio::placeholders::error));
+    }
+    else
+    {
+        m_Timer.async_wait(boost::bind(&TimeOutHandler::HandleTimeOut, this, boost::asio::placeholders::error));
+    }        
 }
 
 void TimeOutHandler::SetTimeOutBase(const bool IsSecondBase)
