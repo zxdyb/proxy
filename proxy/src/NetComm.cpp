@@ -850,7 +850,7 @@ TimeOutHandler::TimeOutHandler(boost::asio::io_service &IOService, boost::asio::
 
 TimeOutHandler::~TimeOutHandler()
 {
-
+    printf("TimeOutHandler::~TimeOutHandler()\r\n");
 }
 
 void TimeOutHandler::Begin()
@@ -881,6 +881,11 @@ void TimeOutHandler::Begin()
 void TimeOutHandler::End()
 {
     if (m_uiSeparateModel)
+    {
+        return;
+    }
+
+    if (0 == m_uiTimeOutSec)
     {
         return;
     }
