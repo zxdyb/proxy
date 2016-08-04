@@ -186,8 +186,8 @@ char *ProxyHub::GeneratePackage(const std::string &strSrcID, const std::string &
     unsigned short usCrc = 0;
     if (1)
     {
-        char *pTobeCrcBuffer = new char[uiToBeCrcBufferLen];
-        snprintf(pTobeCrcBuffer, uiToBeCrcBufferLen, "%s,%s,%s,%s", strSrcID.c_str(), strDstID.c_str(), strType.c_str(), pContentBufferEncoded);
+        char *pTobeCrcBuffer = new char[uiToBeCrcBufferLen + 1];
+        snprintf(pTobeCrcBuffer, uiToBeCrcBufferLen + 1, "%s,%s,%s,%s", strSrcID.c_str(), strDstID.c_str(), strType.c_str(), pContentBufferEncoded);
         usCrc = crc16(pTobeCrcBuffer, uiToBeCrcBufferLen);
         delete[] pTobeCrcBuffer;
         pTobeCrcBuffer = NULL;

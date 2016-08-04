@@ -24,7 +24,7 @@
 #include <boost/lexical_cast.hpp>
 
 #define CONFIG_FILE_NAME "proxy.ini"
-#define PROXY_VERSION "[v1.0.3] "
+#define PROXY_VERSION "[v1.0.5] "
 
 #ifdef _MSC_VER
 #define strcasecmp _stricmp
